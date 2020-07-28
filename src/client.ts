@@ -1,25 +1,20 @@
-import { resolve as pathResolve } from 'path';
-import { promises as fsPromises } from 'fs';
-// import { readFile } from 'fs/promises';
+import { promises as fsPromises, readFileSync } from 'fs';
+import { resolve } from 'path';
 import * as grpc from 'grpc';
-import { loadSync } from '@grpc/proto-loader';
-import {
-  ServerUnaryCall,
-  ServerWritableStream,
-  ServerReadableStream,
-  ServerDuplexStream,
-  ClientWritableStream,
-} from 'grpc';
 import parseArgs from 'minimist';
 import { Point, Feature, Rectangle, RouteNote } from './proto/main_pb';
-
 import services from './proto/main_grpc_pb';
-import { features } from 'process';
-import { reject } from 'lodash';
+
+const creds = grpc.credentials.createSsl(
+  readFileSync(resolve(__dirname, './certs/ca.crt')),
+  readFileSync(resolve(__dirname, './certs/client.key')),
+  readFileSync(resolve(__dirname, './certs/client.crt'))
+);
 
 const client = new services.GrpcLabClient(
   'localhost:50051',
-  grpc.credentials.createInsecure()
+  // grpc.credentials.createInsecure()
+  creds
 );
 
 const COORD_FACTOR = 1e7;

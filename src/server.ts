@@ -1,7 +1,5 @@
 import { resolve } from 'path';
-import { readFile } from 'fs';
-// import * as grpc from 'grpc';
-// import { loadSync } from '@grpc/proto-loader';
+import { readFile, readFileSync } from 'fs';
 import {
   ServerUnaryCall,
   ServerWritableStream,
@@ -19,17 +17,6 @@ import {
   RouteSummary,
 } from './proto/main_pb';
 import { IGrpcLabServer, GrpcLabService } from './proto/main_grpc_pb';
-
-// const PROTO_PATH = resolve(__dirname, '../proto/main.proto');
-
-// const packageDefinition = loadSync(PROTO_PATH, {
-//   keepCase: true,
-//   longs: String,
-//   enums: String,
-//   defaults: true,
-//   oneofs: true,
-// });
-// const { grpclab } = grpc.loadPackageDefinition(packageDefinition);
 
 let featureList: Feature[] = [];
 
@@ -183,20 +170,23 @@ class GrpcLabServer implements IGrpcLabServer {
 }
 
 export function getServer() {
+  const creds = ServerCredentials.createSsl(
+    readFileSync(resolve(__dirname, './certs/ca.crt')),
+    [
+      {
+        private_key: readFileSync(resolve(__dirname, './certs/server.key')),
+        cert_chain: readFileSync(resolve(__dirname, './certs/server.crt')),
+      },
+    ],
+    true
+  );
+
   const server = new Server();
   server.addService<IGrpcLabServer>(GrpcLabService, new GrpcLabServer());
+  server.bind(`localhost:50051`, creds);
+  // server.bind(`localhost:50051`, ServerCredentials.createInsecure());
+
   console.log(`Listening on 50051`);
-  server.bind(`localhost:50051`, ServerCredentials.createInsecure());
-
-  // const server = new grpc.Server();
-
-  // // @ts-ignore
-  // server.addProtoService(grpclab.GrpcLab.service, {
-  //   getFeature,
-  //   listFeatures,
-  //   recordRoute,
-  //   routeChat,
-  // });
 
   return server;
 }
