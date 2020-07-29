@@ -1,13 +1,6 @@
-import { resolve } from 'path';
-import { readFile, readFileSync } from 'fs';
-import {
-  ServerUnaryCall,
-  ServerWritableStream,
-  ServerReadableStream,
-  ServerDuplexStream,
-  Server,
-  ServerCredentials,
-} from 'grpc';
+import path from 'path';
+import fs from 'fs';
+import grpc from 'grpc';
 import parseArgs from 'minimist';
 import {
   Point,
@@ -74,11 +67,11 @@ function pointKey(point: Point) {
 }
 
 class GrpcLabServer implements IGrpcLabServer {
-  getFeature(call: ServerUnaryCall<Point>, callback: Function) {
+  getFeature(call: grpc.ServerUnaryCall<Point>, callback: Function) {
     callback(null, checkFeature(call.request));
   }
 
-  listFeatures(call: ServerWritableStream<Rectangle>) {
+  listFeatures(call: grpc.ServerWritableStream<Rectangle>) {
     const lo = call.request.getLo();
     const hi = call.request.getHi();
 
@@ -114,7 +107,7 @@ class GrpcLabServer implements IGrpcLabServer {
     call.end();
   }
 
-  recordRoute(call: ServerReadableStream<Point>, callback: Function) {
+  recordRoute(call: grpc.ServerReadableStream<Point>, callback: Function) {
     var point_count = 0;
     var feature_count = 0;
     var distance = 0;
@@ -143,7 +136,10 @@ class GrpcLabServer implements IGrpcLabServer {
     });
   }
 
-  routeChat(call: ServerDuplexStream<RouteNote, RouteNote>) {
+  routeChat(call: grpc.ServerDuplexStream<RouteNote, RouteNote>) {
+    console.log('----------');
+    console.log('call', call.metadata.get('mytoken'));
+    console.log('----------');
     call.on('data', function (note: RouteNote) {
       console.log('note', note);
       var key = pointKey(note.getLocation() || new Point());
@@ -170,18 +166,18 @@ class GrpcLabServer implements IGrpcLabServer {
 }
 
 export function getServer() {
-  const creds = ServerCredentials.createSsl(
-    readFileSync(resolve(__dirname, './certs/ca.crt')),
+  const creds = grpc.ServerCredentials.createSsl(
+    fs.readFileSync(path.resolve(__dirname, './certs/ca.crt')),
     [
       {
-        private_key: readFileSync(resolve(__dirname, './certs/server.key')),
-        cert_chain: readFileSync(resolve(__dirname, './certs/server.crt')),
+        private_key: fs.readFileSync(path.resolve(__dirname, './certs/server.key')),
+        cert_chain: fs.readFileSync(path.resolve(__dirname, './certs/server.crt')),
       },
     ],
     true
   );
 
-  const server = new Server();
+  const server = new grpc.Server();
   server.addService<IGrpcLabServer>(GrpcLabService, new GrpcLabServer());
   server.bind(`localhost:50051`, creds);
   // server.bind(`localhost:50051`, ServerCredentials.createInsecure());
@@ -197,7 +193,7 @@ if (require.main === module) {
   var argv = parseArgs(process.argv, {
     string: 'db_path',
   });
-  readFile(resolve(argv.db_path), 'utf8', function (err, data) {
+  fs.readFile(path.resolve(argv.db_path), 'utf8', function (err, data) {
     if (err) throw err;
     featureList = JSON.parse(data).map((item: any) => {
       const feature = new Feature();

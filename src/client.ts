@@ -1,23 +1,33 @@
-import { promises as fsPromises, readFileSync } from 'fs';
-import { resolve } from 'path';
-import * as grpc from 'grpc';
+import fs from 'fs';
+import path from 'path';
+import grpc from 'grpc';
 import parseArgs from 'minimist';
 import { Point, Feature, Rectangle, RouteNote } from './proto/main_pb';
 import services from './proto/main_grpc_pb';
 
-const creds = grpc.credentials.createSsl(
-  readFileSync(resolve(__dirname, './certs/ca.crt')),
-  readFileSync(resolve(__dirname, './certs/client.key')),
-  readFileSync(resolve(__dirname, './certs/client.crt'))
-);
+function createClient() {
+  let chnCreds = grpc.credentials.createSsl(
+    fs.readFileSync(path.resolve(__dirname, './certs/ca.crt')),
+    fs.readFileSync(path.resolve(__dirname, './certs/client.key')),
+    fs.readFileSync(path.resolve(__dirname, './certs/client.crt'))
+  );
 
-const client = new services.GrpcLabClient(
-  'localhost:50051',
-  // grpc.credentials.createInsecure()
-  creds
-);
+  const meta = new grpc.Metadata();
+  meta.set('mytoken', '123');
+  const callCreds = grpc.credentials.createFromMetadataGenerator(function (
+    url,
+    callback
+  ) {
+    callback(null, meta);
+  });
+
+  chnCreds = chnCreds.compose(callCreds);
+
+  return new services.GrpcLabClient('localhost:50051', chnCreds);
+}
 
 const COORD_FACTOR = 1e7;
+const client = createClient();
 
 async function runGetFeature() {
   return new Promise((resolve, reject) => {
@@ -115,7 +125,7 @@ async function runRecordRoute() {
     string: 'db_path',
   });
 
-  const data = await fsPromises.readFile(argv.db_path, 'utf8');
+  const data = await fs.promises.readFile(argv.db_path, 'utf8');
 
   const featureList: Feature[] = JSON.parse(data).map((item: any) => {
     const feature = new Feature();
